@@ -5,7 +5,7 @@ set -euo pipefail
 ENV_FILE="docker-prod.env"
 REGISTRY_URL="registry.digitalocean.com/remote-job"
 # Match compose service/image naming
-SERVICE_NAME="plan-service-api"
+SERVICE_NAME="invoice-service-api"
 DOCKERFILE="Dockerfile"
 TAG="latest"
 FULL_IMAGE_NAME="${REGISTRY_URL}/${SERVICE_NAME}:${TAG}"
@@ -36,7 +36,9 @@ build_docker_image() {
       --build-arg RABBITMQ_USERNAME_ARG="$RABBITMQ_USERNAME" \
       --build-arg RABBITMQ_PASSWORD_ARG="$RABBITMQ_PASSWORD" \
       --build-arg INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME_ARG="$INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME" \
-      --build-arg PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME_ARG="$PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME" \
+      --build-arg NOTIFICATION_EVENTS_RABBITMQ_QUEUE_NAME_ARG="$NOTIFICATION_EVENTS_RABBITMQ_QUEUE_NAME" \
+      --build-arg STRIPE_SECRET_KEY_ARG="$STRIPE_SECRET_KEY" \
+      --build-arg STRIPE_ENDPOINT_SECRET_ARG="$STRIPE_ENDPOINT_SECRET" \
       -t "$FULL_IMAGE_NAME" -f "$DOCKERFILE" ..
 }
 

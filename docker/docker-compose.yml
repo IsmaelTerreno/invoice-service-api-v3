@@ -1,66 +1,45 @@
 version: '3.8'
 services:
-  plan-service-api:
-    image: plan-service-api:latest
+  invoice-service-api:
+    image: invoice-service-api:latest
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
     restart: always
     ports:
-      - '3090:3090'
+      - '${SERVER_PORT_LISTENING:-3120}:${SERVER_PORT_LISTENING:-3120}'
+    env_file:
+      - docker.env
     environment:
-      # --- Server & CORS ---
-      - SERVER_PORT_LISTENING=3090
-      - CORS_ALLOW_ORIGINS=*
-
-      # --- DB config (matches src/main/resources/application.properties) ---
-      - HOST_DB_CONFIG=plan-service-postgres
+      # Override DB host for docker-compose internal networking
+      - HOST_DB_CONFIG=invoice-service-postgres
       - PORT_DB_CONFIG=5432
-      - DATABASE_NAME_DB_CONFIG=remotejob
-      - USER_NAME_DB_CONFIG=postgres
-      - USER_PASSWORD_DB_CONFIG=postgres
-
-      # --- JWT (dummy local values; adjust as needed) ---
-      - JWT_SECRET_ACCESS=dev-access-secret
-      - JWT_SECRET_REFRESH=dev-refresh-secret
-      - JWT_URL_ENDPOINT=http://localhost:3090
-
-      # --- Test E2E defaults (optional) ---
-      - TEST_USER_NAME=testuser
-      - TEST_USER_EMAIL=testuser@example.com
-      - TEST_USER_PASSWORD=testpassword
-
-      # --- RabbitMQ connection ---
+      # Override RabbitMQ host for docker-compose internal networking
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USERNAME=guest
-      - RABBITMQ_PASSWORD=guest
-
-      # --- Application queue names ---
-      - INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME=invoice-status-on-related-plans
-      - PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME=plans-to-create
     volumes:
-      - ./plan-service-api-data:/plan-service-api
+      - ./invoice-service-api-data:/invoice-service-api
     depends_on:
-      plan-service-postgres:
+      invoice-service-postgres:
         condition: service_started
       rabbitmq:
         condition: service_started
     networks:
       - remote-job-network
 
-  plan-service-postgres:
+  invoice-service-postgres:
     image: postgres:latest
+    env_file:
+      - docker.env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=remotejob
+      - POSTGRES_USER=${USER_NAME_DB_CONFIG:-postgres}
+      - POSTGRES_PASSWORD=${USER_PASSWORD_DB_CONFIG:-postgres}
+      - POSTGRES_DB=${DATABASE_NAME_DB_CONFIG:-remotejob}
     ports:
-      - '1090:5432'
+      - '5433:5432'
     volumes:
-      - ./plan-service-api-postgres-data:/var/lib/postgresql/data
+      - ./invoice-service-api-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${USER_NAME_DB_CONFIG:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,12 +49,14 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
+    env_file:
+      - docker.env
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     ports:
       - '5672:5672'   # AMQP
-      - '15672:15672' # Management UI http://localhost:15672 (guest/guest)
+      - '15672:15672' # Management UI http://localhost:15672
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s

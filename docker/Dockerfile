@@ -18,20 +18,20 @@ COPY src src
 
 # Build the application and robustly copy the produced jar (avoid brittle fixed name)
 # - We still set a deterministic finalName, but in case plugins change naming, we select the
-#   first non-sources/non-javadoc/non-original jar from target and copy it as plan-service-api.jar
-RUN mvn -B -DskipTests -DfinalName=plan-service-api clean package \
+#   first non-sources/non-javadoc/non-original jar from target and copy it as invoice-service-api.jar
+RUN mvn -B -DskipTests -DfinalName=invoice-service-api clean package \
     && echo "Built artifacts in target/:" \
     && ls -al target \
     && JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "*sources*" ! -name "*javadoc*" ! -name "*original*" | head -n1) \
     && echo "Selecting jar: ${JAR_PATH}" \
-    && cp "${JAR_PATH}" /workspace/plan-service-api.jar
+    && cp "${JAR_PATH}" /workspace/invoice-service-api.jar
 
 # Runner: use lightweight JDK 22 base
 FROM eclipse-temurin:22-jdk AS runner
 
 # Re-declare build args in runner stage so they can be used as defaults for ENV
 # Provide a sensible default port so EXPOSE never receives an empty value
-ARG SERVER_PORT_LISTENING_ARG=3090
+ARG SERVER_PORT_LISTENING_ARG=3120
 ARG CORS_ALLOW_ORIGINS_ARG
 
 # --- DB config ---
@@ -59,7 +59,11 @@ ARG RABBITMQ_PASSWORD_ARG
 
 # --- Application queue names ---
 ARG INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME_ARG
-ARG PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME_ARG
+ARG NOTIFICATION_EVENTS_RABBITMQ_QUEUE_NAME_ARG
+
+# --- Stripe configuration ---
+ARG STRIPE_SECRET_KEY_ARG
+ARG STRIPE_ENDPOINT_SECRET_ARG
 
 # Provide default ENV values baked into the image (can be overridden at runtime)
 ENV SERVER_PORT_LISTENING=${SERVER_PORT_LISTENING_ARG}
@@ -90,10 +94,14 @@ ENV RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD_ARG}
 
 # --- Application queue names ---
 ENV INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME=${INVOICE_STATUS_ON_RELATED_PLANS_RABBITMQ_QUEUE_NAME_ARG}
-ENV PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME=${PLANS_TO_CREATE_RABBITMQ_QUEUE_NAME_ARG}
+ENV NOTIFICATION_EVENTS_RABBITMQ_QUEUE_NAME=${NOTIFICATION_EVENTS_RABBITMQ_QUEUE_NAME_ARG}
+
+# --- Stripe configuration ---
+ENV STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY_ARG}
+ENV STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET_ARG}
 
 # Copy the jar from the builder stage
-COPY --from=builder /workspace/plan-service-api.jar app.jar
+COPY --from=builder /workspace/invoice-service-api.jar app.jar
 
 # Make port SERVER_PORT_LISTENING value available to the world outside this container
 EXPOSE ${SERVER_PORT_LISTENING}

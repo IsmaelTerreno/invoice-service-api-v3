@@ -11,8 +11,8 @@
     <groupId>com.remotejob</groupId>
     <artifactId>invoice-service-api-v3</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>plan-service-api</name>
-    <description>plan-service-api</description>
+    <name>invoice-service-api</name>
+    <description>invoice-service-api</description>
     <properties>
         <java.version>22</java.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
@@ -107,6 +107,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- H2 Database for testing -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -117,6 +123,12 @@
             <artifactId>annotations</artifactId>
             <version>13.0</version>
             <scope>compile</scope>
+        </dependency>
+        <!-- Stripe SDK for payment processing -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>24.14.0</version>
         </dependency>
     </dependencies>
 
