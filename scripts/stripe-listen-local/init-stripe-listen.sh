@@ -47,8 +47,10 @@ if [ "${STRIPE_WEBHOOK_SECRET:-}" = "" ] && [ "${STRIPE_ENDPOINT_SECRET:-}" != "
   export STRIPE_WEBHOOK_SECRET="$STRIPE_ENDPOINT_SECRET"
 fi
 # Determine forward URL (respect SERVER_PORT_LISTENING if present)
+# Note: The application maps the Stripe webhook at /api/v1/invoice/stripe_webhooks
+# so we forward to that exact path to avoid 403/404 issues.
 forward_port="${SERVER_PORT_LISTENING:-3120}"
-forward_url="http://localhost:${forward_port}/stripe_webhooks"
+forward_url="http://localhost:${forward_port}/api/v1/invoice/stripe_webhooks"
 # Start Stripe CLI listener with explicit API key if available to avoid using cached, possibly expired auth
 if [ -n "${STRIPE_API_KEY:-}" ]; then
   echo "[init-stripe-listen] Starting Stripe listener forwarding to ${forward_url} using STRIPE_API_KEY from environment"

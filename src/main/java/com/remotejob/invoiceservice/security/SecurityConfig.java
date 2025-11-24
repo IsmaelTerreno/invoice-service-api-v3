@@ -93,6 +93,8 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // Allow Stripe webhooks publicly
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoice/stripe_webhooks").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/plan/{id}").permitAll()
                         // Removed unused search endpoint and enforced auth for user path
                         .requestMatchers(HttpMethod.GET, "/api/v1/plan/user/{userId}").authenticated()
