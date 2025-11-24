@@ -1,5 +1,7 @@
 # Environment variables
 .env
+docker/docker-prod.env
+docker/docker.env
 
 # Compiled class files
 *.class
