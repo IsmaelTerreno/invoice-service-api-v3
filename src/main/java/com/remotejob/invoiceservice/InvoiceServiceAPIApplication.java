@@ -28,7 +28,6 @@ public class InvoiceServiceAPIApplication {
             String host = env.getProperty("HOST_DB_CONFIG");
             String port = env.getProperty("PORT_DB_CONFIG");
             String database = env.getProperty("DATABASE_NAME_DB_CONFIG");
-            String sslMode = env.getProperty("DB_SSL_MODE");
             String[] profiles = env.getActiveProfiles();
             String activeProfile = profiles.length > 0 ? String.join(",", profiles) : "default";
 
@@ -40,7 +39,6 @@ public class InvoiceServiceAPIApplication {
             logger.info("Database Port: {}", port);
             logger.info("Database Name: {}", database);
             logger.info("Database Username: {}", username);
-            logger.info("SSL Mode: {}", sslMode != null ? sslMode : "NOT SET (will use default from URL)");
             logger.info("Complete JDBC URL: {}", datasourceUrl);
             logger.info("=".repeat(80));
         });

@@ -25,7 +25,6 @@ build_docker_image() {
       --build-arg DATABASE_NAME_DB_CONFIG_ARG="$DATABASE_NAME_DB_CONFIG" \
       --build-arg USER_NAME_DB_CONFIG_ARG="$USER_NAME_DB_CONFIG" \
       --build-arg USER_PASSWORD_DB_CONFIG_ARG="$USER_PASSWORD_DB_CONFIG" \
-      --build-arg DB_SSL_MODE_ARG="$DB_SSL_MODE" \
       --build-arg JWT_SECRET_ACCESS_ARG="$JWT_SECRET_ACCESS" \
       --build-arg JWT_SECRET_REFRESH_ARG="$JWT_SECRET_REFRESH" \
       --build-arg JWT_URL_ENDPOINT_ARG="$JWT_URL_ENDPOINT" \
