@@ -1,5 +1,6 @@
 package com.remotejob.invoiceservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -36,5 +37,6 @@ public class SubscriptionDto {
     private JsonNode items;
 
     @Schema(description = "Payment Method of the subscription.", example = "pm_card_visa")
+    @JsonProperty("payment_method")
     private String paymentMethod;
 }

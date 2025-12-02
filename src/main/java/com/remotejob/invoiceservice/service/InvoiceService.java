@@ -92,7 +92,8 @@ public class InvoiceService {
         // Create new subscription in Stripe
         Subscription subscription = stripeService.createSubscription(
                 customer.getId(),
-                subscriptionToCreate.getItems()
+                subscriptionToCreate.getItems(),
+                subscriptionToCreate.getPaymentMethod()
         );
         log.info("✅ Created Stripe subscription: {}", subscription.getId());
 

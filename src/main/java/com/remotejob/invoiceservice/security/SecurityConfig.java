@@ -95,13 +95,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // Allow Stripe webhooks publicly
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoice/stripe_webhooks").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/plan/{id}").permitAll()
-                        // Removed unused search endpoint and enforced auth for user path
-                        .requestMatchers(HttpMethod.GET, "/api/v1/plan/user/{userId}").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/plan").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/plan").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/plan/{id}").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/plan/{id}").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoice/create-subscription").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invoice/all").authenticated()
                         .requestMatchers("/actuator/health/**").permitAll()
                 )
                 // Add JWT filter after UsernamePasswordAuthenticationFilter

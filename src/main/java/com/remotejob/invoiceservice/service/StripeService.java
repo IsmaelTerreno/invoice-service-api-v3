@@ -39,14 +39,16 @@ public class StripeService {
      *
      * @param customerId The unique identifier of the customer.
      * @param items A JsonNode representing the items to include in the subscription.
+     * @param paymentMethodId The payment method ID to use for the subscription.
      * @return The newly created subscription object.
      * @throws StripeException if the subscription creation fails.
      */
-    public Subscription createSubscription(String customerId, JsonNode items) throws StripeException {
-        log.info("Creating subscription for customer: {}", customerId);
+    public Subscription createSubscription(String customerId, JsonNode items, String paymentMethodId) throws StripeException {
+        log.info("Creating subscription for customer: {} with payment method: {}", customerId, paymentMethodId);
 
         SubscriptionCreateParams.Builder paramsBuilder = SubscriptionCreateParams.builder()
                 .setCustomer(customerId)
+                .setDefaultPaymentMethod(paymentMethodId)
                 .setPaymentBehavior(SubscriptionCreateParams.PaymentBehavior.DEFAULT_INCOMPLETE)
                 .setPaymentSettings(
                         SubscriptionCreateParams.PaymentSettings.builder()
