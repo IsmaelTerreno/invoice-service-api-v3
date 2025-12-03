@@ -7,6 +7,7 @@ import com.remotejob.invoiceservice.dto.PaymentDto;
 import com.remotejob.invoiceservice.dto.SubscriptionDto;
 import com.remotejob.invoiceservice.entity.Invoice;
 import com.remotejob.invoiceservice.repository.InvoiceRepository;
+import com.remotejob.invoiceservice.util.CorrelationContext;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +38,9 @@ public class InvoiceService {
 
     @Value("${rabbitmq.queue.invoice-status-on-related-plans}")
     private String invoiceStatusOnRelatedPlansQueueName;
+
+    @Value("${rabbitmq.queue.plans-to-create}")
+    private String plansToCreateQueueName;
 
     @Value("${rabbitmq.queue.notification-events}")
     private String notificationEventsQueueName;
@@ -82,14 +87,22 @@ public class InvoiceService {
      * @throws StripeException if any Stripe operation fails.
      */
     public Map<String, Object> createSubscriptionAndSaveInvoice(SubscriptionDto subscriptionToCreate) throws StripeException {
-        log.info("🔄 Processing event type: Create subscription and save invoice");
+        Instant startTime = Instant.now();
+        
+        // Set tracking context
+        CorrelationContext.setUserId(subscriptionToCreate.getUserId());
+        
+        log.info("🔄 [SUBSCRIPTION] Starting subscription creation | userId={} | email={}", 
+                subscriptionToCreate.getUserId(), subscriptionToCreate.getEmail());
 
         // Create new customer in Stripe
         com.stripe.model.Customer customer = stripeService.createCustomer(
                 subscriptionToCreate.getEmail(),
                 subscriptionToCreate.getPaymentMethod()
         );
-        log.info("✅ Created Stripe customer: {}", customer.getId());
+        CorrelationContext.setCustomerId(customer.getId());
+        log.info("✅ [SUBSCRIPTION] Created Stripe customer | customerId={} | email={}", 
+                customer.getId(), customer.getEmail());
 
         // Create new subscription in Stripe
         Subscription subscription = stripeService.createSubscription(
@@ -97,11 +110,17 @@ public class InvoiceService {
                 subscriptionToCreate.getItems(),
                 subscriptionToCreate.getPaymentMethod()
         );
-        log.info("✅ Created Stripe subscription: {}", subscription.getId());
+        CorrelationContext.setSubscriptionId(subscription.getId());
+        log.info("✅ [SUBSCRIPTION] Created Stripe subscription | subscriptionId={} | status={}", 
+                subscription.getId(), subscription.getStatus());
 
         // Get the latest invoice and payment intent
         com.stripe.model.Invoice latestInvoice = (com.stripe.model.Invoice) subscription.getLatestInvoiceObject();
         PaymentIntent paymentIntent = (PaymentIntent) latestInvoice.getPaymentIntentObject();
+        CorrelationContext.setPaymentIntentId(paymentIntent.getId());
+        
+        log.debug("[SUBSCRIPTION] Retrieved payment details | stripeInvoiceId={} | paymentIntentId={} | amount={}", 
+                latestInvoice.getId(), paymentIntent.getId(), paymentIntent.getAmount());
 
         // Prepare invoice to create
         Invoice invoiceToCreate = new Invoice();
@@ -116,19 +135,22 @@ public class InvoiceService {
 
         // Create new invoice in DB from Stripe subscription information
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
-        log.info("✅ Created in DB the invoice with customer ID: {} and with invoice ID: {}",
-                savedInvoice.getUserId(), savedInvoice.getId());
+        CorrelationContext.setInvoiceId(savedInvoice.getId().toString());
+        
+        log.info("✅ [SUBSCRIPTION] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={}", 
+                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), savedInvoice.getStatus());
 
         // Confirm payment intent to complete the subscription
-        stripeService.confirmPaymentIntent(
+        log.info("🔄 [SUBSCRIPTION] Confirming payment intent | paymentIntentId={}", paymentIntent.getId());
+        PaymentIntent confirmedPaymentIntent = stripeService.confirmPaymentIntent(
                 paymentIntent.getId(),
                 subscriptionToCreate.getPaymentMethod()
         );
-        log.info("✅ Confirmed the payment intent with customer ID: {} and with invoice ID: {}",
-                savedInvoice.getUserId(), savedInvoice.getId());
+        log.info("✅ [SUBSCRIPTION] Payment intent confirmed | paymentIntentId={} | status={}", 
+                confirmedPaymentIntent.getId(), confirmedPaymentIntent.getStatus());
 
-        log.info("🛰 Sending message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
-                subscriptionToCreate.getUserId(), savedInvoice.getId());
+        log.info("🛰 [SUBSCRIPTION->PLAN] Initiating plan creation | userId={} | invoiceId={} | subscriptionId={}", 
+                subscriptionToCreate.getUserId(), savedInvoice.getId(), subscription.getId());
 
         // Send message to RabbitMQ service to create a plan for the related invoice
         Map<String, Object> planData = new HashMap<>();
@@ -140,13 +162,9 @@ public class InvoiceService {
         planData.put("status", subscription.getStatus());
         planData.put("durationInDays", 30);
 
-        rabbitMQService.createMessageMQService(
-                planData,
-                invoiceStatusOnRelatedPlansQueueName,
-                EventPatternNotification.PLANS_TO_CREATE
-        );
+        rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
-        log.info("🚀 Sent message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
+        log.info("✅ [SUBSCRIPTION->PLAN] Plan creation message sent | userId={} | invoiceId={} | isActive=false", 
                 subscriptionToCreate.getUserId(), savedInvoice.getId());
 
         // Prepare notification message for the user
@@ -165,14 +183,17 @@ public class InvoiceService {
                 EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION
         );
 
-        log.info("🚀 Sent message to RabbitMQ the notification for customer ID: {} and with invoice ID: {}",
-                savedInvoice.getUserId(), savedInvoice.getId());
+        log.info("✅ [SUBSCRIPTION] Notification sent to user | userId={}", savedInvoice.getUserId());
 
         // Return the created invoice
         Map<String, Object> response = new HashMap<>();
         response.put("status", subscription.getStatus());
         response.put("message", "New subscription created successfully.");
         response.put("data", savedInvoice);
+
+        long durationMs = Duration.between(startTime, Instant.now()).toMillis();
+        log.info("🎉 [SUBSCRIPTION] Subscription creation completed | userId={} | invoiceId={} | customerId={} | duration={}ms", 
+                savedInvoice.getUserId(), savedInvoice.getId(), savedInvoice.getCustomerId(), durationMs);
 
         return response;
     }
@@ -185,7 +206,13 @@ public class InvoiceService {
      * @throws StripeException if any Stripe operation fails.
      */
     public Map<String, Object> createOneTimePaymentAndSaveInvoice(PaymentDto paymentToCreate) throws StripeException {
-        log.info("🔄 Processing event type: Create one-time payment and save invoice");
+        Instant startTime = Instant.now();
+        
+        // Set tracking context
+        CorrelationContext.setUserId(paymentToCreate.getUserId());
+        
+        log.info("🔄 [PAYMENT] Starting one-time payment | userId={} | email={} | currency={}", 
+                paymentToCreate.getUserId(), paymentToCreate.getEmail(), paymentToCreate.getCurrency());
 
         // Get or create customer in Stripe
         com.stripe.model.Customer customer;
@@ -203,10 +230,14 @@ public class InvoiceService {
                         paymentToCreate.getEmail(),
                         paymentToCreate.getPaymentMethod()
                 );
-                log.info("✅ Created new Stripe customer: {}", customer.getId());
+                CorrelationContext.setCustomerId(customer.getId());
+                log.info("✅ [PAYMENT] Created new Stripe customer | customerId={} | email={}", 
+                        customer.getId(), customer.getEmail());
             } else {
                 customer = customers.getData().get(0);
-                log.info("✅ Using existing Stripe customer: {}", customer.getId());
+                CorrelationContext.setCustomerId(customer.getId());
+                log.info("✅ [PAYMENT] Using existing Stripe customer | customerId={} | email={}", 
+                        customer.getId(), customer.getEmail());
             }
         } catch (StripeException e) {
             log.error("Error finding/creating customer", e);
@@ -230,7 +261,9 @@ public class InvoiceService {
             }
         }
 
-        log.info("💰 Total amount calculated: {} cents", totalAmount);
+        log.info("💰 [PAYMENT] Total amount calculated | amount={} {} | itemCount={}", 
+                totalAmount, paymentToCreate.getCurrency(), 
+                items != null && items.isArray() ? items.size() : 0);
 
         // Create and confirm payment intent
         PaymentIntent paymentIntent = stripeService.createPaymentIntent(
@@ -239,7 +272,9 @@ public class InvoiceService {
                 totalAmount,
                 paymentToCreate.getCurrency()
         );
-        log.info("✅ Created and confirmed payment intent: {}", paymentIntent.getId());
+        CorrelationContext.setPaymentIntentId(paymentIntent.getId());
+        log.info("✅ [PAYMENT] Payment intent created and confirmed | paymentIntentId={} | status={} | amount={}", 
+                paymentIntent.getId(), paymentIntent.getStatus(), paymentIntent.getAmount());
 
         // Prepare invoice to create
         Invoice invoiceToCreate = new Invoice();
@@ -254,11 +289,14 @@ public class InvoiceService {
 
         // Create new invoice in DB from payment information
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
-        log.info("✅ Created in DB the invoice with customer ID: {} and with invoice ID: {}",
-                savedInvoice.getUserId(), savedInvoice.getId());
+        CorrelationContext.setInvoiceId(savedInvoice.getId().toString());
+        
+        log.info("✅ [PAYMENT] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={}", 
+                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), savedInvoice.getStatus());
 
-        log.info("🛰 Sending message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
-                paymentToCreate.getUserId(), savedInvoice.getId());
+        boolean isActive = paymentIntent.getStatus().equals("succeeded");
+        log.info("🛰 [PAYMENT->PLAN] Initiating plan creation | userId={} | invoiceId={} | paymentStatus={} | isActive={}", 
+                paymentToCreate.getUserId(), savedInvoice.getId(), paymentIntent.getStatus(), isActive);
 
         // Send message to RabbitMQ service to create a plan for the related invoice
         Map<String, Object> planData = new HashMap<>();
@@ -266,18 +304,14 @@ public class InvoiceService {
         planData.put("invoiceId", savedInvoice.getId());
         planData.put("description", extractDescription(savedInvoice.getItems()));
         planData.put("items", savedInvoice.getItems());
-        planData.put("isActive", paymentIntent.getStatus().equals("succeeded"));
+        planData.put("isActive", isActive);
         planData.put("status", paymentIntent.getStatus());
         planData.put("durationInDays", 30);
 
-        rabbitMQService.createMessageMQService(
-                planData,
-                invoiceStatusOnRelatedPlansQueueName,
-                EventPatternNotification.PLANS_TO_CREATE
-        );
+        rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
-        log.info("🚀 Sent message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
-                paymentToCreate.getUserId(), savedInvoice.getId());
+        log.info("✅ [PAYMENT->PLAN] Plan creation message sent | userId={} | invoiceId={} | isActive={}", 
+                paymentToCreate.getUserId(), savedInvoice.getId(), isActive);
 
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
@@ -305,8 +339,7 @@ public class InvoiceService {
                     : EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION
         );
 
-        log.info("🚀 Sent message to RabbitMQ the notification for customer ID: {} and with invoice ID: {}",
-                savedInvoice.getUserId(), savedInvoice.getId());
+        log.info("✅ [PAYMENT] Notification sent to user | userId={}", savedInvoice.getUserId());
 
         // Return the created invoice
         Map<String, Object> response = new HashMap<>();
@@ -314,6 +347,10 @@ public class InvoiceService {
         response.put("message", "One-time payment processed successfully.");
         response.put("data", savedInvoice);
         response.put("paymentIntentId", paymentIntent.getId());
+
+        long durationMs = Duration.between(startTime, Instant.now()).toMillis();
+        log.info("🎉 [PAYMENT] One-time payment completed | userId={} | invoiceId={} | paymentIntentId={} | status={} | duration={}ms", 
+                savedInvoice.getUserId(), savedInvoice.getId(), paymentIntent.getId(), paymentIntent.getStatus(), durationMs);
 
         return response;
     }
@@ -374,7 +411,9 @@ public class InvoiceService {
      * and sending a message to RabbitMQ to update the status of related plans.
      */
     private void handlePaymentIntentSucceeded(Event event) {
-        log.info("🔄 Processing event type: Payment intent succeeded");
+        Instant startTime = Instant.now();
+        
+        log.info("🔔 [WEBHOOK] Processing payment_intent.succeeded | eventId={}", event.getId());
 
         PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                 .getObject()
@@ -382,32 +421,43 @@ public class InvoiceService {
 
         String customerId = paymentIntent.getCustomer();
         String invoiceIdProvidedByStripe = paymentIntent.getInvoice();
+        
+        CorrelationContext.setCustomerId(customerId);
+        CorrelationContext.setPaymentIntentId(paymentIntent.getId());
 
-        log.info("🔄 Searching in DB the invoice status with customer ID: {} and with invoice ID: {}",
-                customerId, invoiceIdProvidedByStripe);
+        log.info("🔍 [WEBHOOK] Looking up invoice | customerId={} | stripeInvoiceId={} | paymentIntentId={} | amount={}",
+                customerId, invoiceIdProvidedByStripe, paymentIntent.getId(), paymentIntent.getAmount());
 
         Optional<Invoice> invoiceOptional = invoiceRepository.findByCustomerIdAndInvoiceIdProvidedByStripe(
                 customerId, invoiceIdProvidedByStripe);
 
         if (invoiceOptional.isEmpty()) {
-            log.error("❌ Related invoice not found for the payment intent succeeded event with customer ID: {} and with invoice ID: {}",
-                    customerId, invoiceIdProvidedByStripe);
+            log.error("❌ [WEBHOOK] Invoice not found in DB | customerId={} | stripeInvoiceId={} | paymentIntentId={}",
+                    customerId, invoiceIdProvidedByStripe, paymentIntent.getId());
             return;
         }
 
         Invoice invoiceFound = invoiceOptional.get();
+        CorrelationContext.setUserId(invoiceFound.getUserId());
+        CorrelationContext.setInvoiceId(invoiceFound.getId().toString());
+        
+        log.info("✅ [WEBHOOK] Invoice found in DB | invoiceId={} | userId={} | currentStatus={}",
+                invoiceFound.getId(), invoiceFound.getUserId(), invoiceFound.getStatus());
 
         // Update invoice status
+        String oldStatus = invoiceFound.getStatus();
         invoiceFound.setStatus(paymentIntent.getStatus());
-        log.info("🔄 Updating in DB the invoice status with customer ID: {} and with invoice ID: {} with payment status: {}",
-                customerId, invoiceIdProvidedByStripe, paymentIntent.getStatus());
+        
+        log.info("🔄 [WEBHOOK] Updating invoice status in DB | invoiceId={} | oldStatus={} | newStatus={}",
+                invoiceFound.getId(), oldStatus, paymentIntent.getStatus());
 
         invoiceRepository.save(invoiceFound);
-        log.info("✅ Updated in DB the invoice status with customer ID: {} and with invoice ID: {} with payment status: {}",
-                customerId, invoiceIdProvidedByStripe, paymentIntent.getStatus());
+        
+        log.info("✅ [WEBHOOK] Invoice status updated in DB | invoiceId={} | status={}",
+                invoiceFound.getId(), paymentIntent.getStatus());
 
-        log.info("🛰 Sending message to RabbitMQ to update the status of the related plan with customer ID: {} and with invoice ID: {}",
-                invoiceFound.getUserId(), invoiceFound.getId());
+        log.info("🛰 [WEBHOOK->PLAN] Initiating plan status update | userId={} | invoiceId={} | newStatus={} | isActive=true", 
+                invoiceFound.getUserId(), invoiceFound.getId(), paymentIntent.getStatus());
 
         // Send message to RabbitMQ service to update the status of the existing related plan
         Map<String, Object> statusUpdateData = new HashMap<>();
@@ -415,16 +465,12 @@ public class InvoiceService {
         statusUpdateData.put("invoiceId", invoiceFound.getId());
         statusUpdateData.put("description", extractDescription(invoiceFound.getItems()));
         statusUpdateData.put("items", invoiceFound.getItems());
-        statusUpdateData.put("isActive", false);
+        statusUpdateData.put("isActive", true);
         statusUpdateData.put("status", paymentIntent.getStatus());
 
-        rabbitMQService.createMessageMQService(
-                statusUpdateData,
-                invoiceStatusOnRelatedPlansQueueName,
-                EventPatternNotification.INVOICE_STATUS_UPDATE
-        );
+        rabbitMQService.sendDirectMessage(statusUpdateData, invoiceStatusOnRelatedPlansQueueName);
 
-        log.info("🚀 Sent message to RabbitMQ to update the status of the related plan with customer ID: {} and with invoice ID: {}",
+        log.info("✅ [WEBHOOK->PLAN] Plan status update message sent | userId={} | invoiceId={} | isActive=true", 
                 invoiceFound.getUserId(), invoiceFound.getId());
 
         // Prepare notification message for the user
@@ -443,8 +489,11 @@ public class InvoiceService {
                 EventPatternNotification.PAYMENT_RECEIVED_NOTIFICATION
         );
 
-        log.info("🚀 Sent message to RabbitMQ the notification for customer ID: {} and with invoice ID: {}",
-                invoiceFound.getUserId(), invoiceFound.getId());
+        log.info("✅ [WEBHOOK] Notification sent to user | userId={}", invoiceFound.getUserId());
+        
+        long durationMs = Duration.between(startTime, Instant.now()).toMillis();
+        log.info("🎉 [WEBHOOK] Payment intent succeeded processing completed | userId={} | invoiceId={} | paymentIntentId={} | duration={}ms",
+                invoiceFound.getUserId(), invoiceFound.getId(), paymentIntent.getId(), durationMs);
     }
 
     /**

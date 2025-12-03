@@ -13,12 +13,20 @@ public class RabbitConfig {
     @Value("${rabbitmq.queue.invoice-status-on-related-plans}")
     private String invoiceStatusOnRelatedPlansQueueName;
 
+    @Value("${rabbitmq.queue.plans-to-create}")
+    private String plansToCreateQueueName;
+
     @Value("${rabbitmq.queue.notification-events}")
     private String notificationEventsQueueName;
 
     @Bean
     public Queue invoiceStatusOnRelatedPlansQueue() {
         return new Queue(invoiceStatusOnRelatedPlansQueueName, true);
+    }
+
+    @Bean
+    public Queue plansToCreateQueue() {
+        return new Queue(plansToCreateQueueName, true);
     }
 
     @Bean
