@@ -3,12 +3,14 @@ package com.remotejob.invoiceservice.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.remotejob.invoiceservice.amqp.EventPatternNotification;
 import com.remotejob.invoiceservice.dto.NotificationDto;
+import com.remotejob.invoiceservice.dto.PaymentDto;
 import com.remotejob.invoiceservice.dto.SubscriptionDto;
 import com.remotejob.invoiceservice.entity.Invoice;
 import com.remotejob.invoiceservice.repository.InvoiceRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Price;
 import com.stripe.model.Subscription;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -171,6 +173,147 @@ public class InvoiceService {
         response.put("status", subscription.getStatus());
         response.put("message", "New subscription created successfully.");
         response.put("data", savedInvoice);
+
+        return response;
+    }
+
+    /**
+     * Creates a one-time payment and saves the corresponding invoice.
+     *
+     * @param paymentToCreate The data required to create the one-time payment.
+     * @return A map containing the status, message, and saved invoice data.
+     * @throws StripeException if any Stripe operation fails.
+     */
+    public Map<String, Object> createOneTimePaymentAndSaveInvoice(PaymentDto paymentToCreate) throws StripeException {
+        log.info("🔄 Processing event type: Create one-time payment and save invoice");
+
+        // Get or create customer in Stripe
+        com.stripe.model.Customer customer;
+        try {
+            // Try to find existing customer by email
+            Map<String, Object> params = new HashMap<>();
+            params.put("email", paymentToCreate.getEmail());
+            params.put("limit", 1);
+            
+            com.stripe.model.CustomerCollection customers = com.stripe.model.Customer.list(params);
+            
+            if (customers.getData().isEmpty()) {
+                // Create new customer if not found
+                customer = stripeService.createCustomer(
+                        paymentToCreate.getEmail(),
+                        paymentToCreate.getPaymentMethod()
+                );
+                log.info("✅ Created new Stripe customer: {}", customer.getId());
+            } else {
+                customer = customers.getData().get(0);
+                log.info("✅ Using existing Stripe customer: {}", customer.getId());
+            }
+        } catch (StripeException e) {
+            log.error("Error finding/creating customer", e);
+            throw e;
+        }
+
+        // Calculate total amount from items by retrieving price information
+        long totalAmount = 0;
+        JsonNode items = paymentToCreate.getItems();
+        
+        if (items != null && items.isArray()) {
+            for (JsonNode item : items) {
+                String priceId = item.has("price") ? item.get("price").asText() : null;
+                if (priceId != null) {
+                    Price price = stripeService.getPrice(priceId);
+                    Long unitAmount = price.getUnitAmount();
+                    if (unitAmount != null) {
+                        totalAmount += unitAmount;
+                    }
+                }
+            }
+        }
+
+        log.info("💰 Total amount calculated: {} cents", totalAmount);
+
+        // Create and confirm payment intent
+        PaymentIntent paymentIntent = stripeService.createPaymentIntent(
+                customer.getId(),
+                paymentToCreate.getPaymentMethod(),
+                totalAmount,
+                paymentToCreate.getCurrency()
+        );
+        log.info("✅ Created and confirmed payment intent: {}", paymentIntent.getId());
+
+        // Prepare invoice to create
+        Invoice invoiceToCreate = new Invoice();
+        invoiceToCreate.setUserId(paymentToCreate.getUserId());
+        invoiceToCreate.setCustomerId(customer.getId());
+        invoiceToCreate.setCustomerEmail(customer.getEmail());
+        invoiceToCreate.setItems(paymentToCreate.getItems());
+        invoiceToCreate.setSubscriptionId(null); // No subscription for one-time payments
+        invoiceToCreate.setStatus(paymentIntent.getStatus());
+        invoiceToCreate.setLastPaymentIntentId(paymentIntent.getId());
+        invoiceToCreate.setInvoiceIdProvidedByStripe(paymentIntent.getId()); // Use payment intent ID as invoice ID
+
+        // Create new invoice in DB from payment information
+        Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
+        log.info("✅ Created in DB the invoice with customer ID: {} and with invoice ID: {}",
+                savedInvoice.getUserId(), savedInvoice.getId());
+
+        log.info("🛰 Sending message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
+                paymentToCreate.getUserId(), savedInvoice.getId());
+
+        // Send message to RabbitMQ service to create a plan for the related invoice
+        Map<String, Object> planData = new HashMap<>();
+        planData.put("userId", paymentToCreate.getUserId());
+        planData.put("invoiceId", savedInvoice.getId());
+        planData.put("description", extractDescription(savedInvoice.getItems()));
+        planData.put("items", savedInvoice.getItems());
+        planData.put("isActive", paymentIntent.getStatus().equals("succeeded"));
+        planData.put("status", paymentIntent.getStatus());
+        planData.put("durationInDays", 30);
+
+        rabbitMQService.createMessageMQService(
+                planData,
+                invoiceStatusOnRelatedPlansQueueName,
+                EventPatternNotification.PLANS_TO_CREATE
+        );
+
+        log.info("🚀 Sent message to RabbitMQ to create the related plan with customer ID: {} and with invoice ID: {}",
+                paymentToCreate.getUserId(), savedInvoice.getId());
+
+        // Prepare notification message for the user
+        NotificationDto notificationMessage = new NotificationDto();
+        notificationMessage.setUserId(savedInvoice.getUserId());
+        
+        if (paymentIntent.getStatus().equals("succeeded")) {
+            notificationMessage.setTopic("Payment successful");
+            notificationMessage.setBody("Your payment has been processed successfully.");
+            notificationMessage.setEventType(EventPatternNotification.PAYMENT_RECEIVED_NOTIFICATION.getPattern());
+        } else {
+            notificationMessage.setTopic("Payment processing");
+            notificationMessage.setBody("Your payment is being processed.");
+            notificationMessage.setEventType(EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION.getPattern());
+        }
+        
+        notificationMessage.setRead(false);
+        notificationMessage.setCreatedAt(Instant.now());
+
+        // Send message to RabbitMQ service to notify the user about the payment status
+        rabbitMQService.createMessageMQService(
+                notificationMessage,
+                notificationEventsQueueName,
+                paymentIntent.getStatus().equals("succeeded") 
+                    ? EventPatternNotification.PAYMENT_RECEIVED_NOTIFICATION
+                    : EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION
+        );
+
+        log.info("🚀 Sent message to RabbitMQ the notification for customer ID: {} and with invoice ID: {}",
+                savedInvoice.getUserId(), savedInvoice.getId());
+
+        // Return the created invoice
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", paymentIntent.getStatus());
+        response.put("message", "One-time payment processed successfully.");
+        response.put("data", savedInvoice);
+        response.put("paymentIntentId", paymentIntent.getId());
 
         return response;
     }

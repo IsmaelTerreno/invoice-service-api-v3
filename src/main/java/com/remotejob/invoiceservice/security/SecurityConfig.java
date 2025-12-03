@@ -96,6 +96,7 @@ public class SecurityConfig {
                         // Allow Stripe webhooks publicly
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoice/stripe_webhooks").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoice/create-subscription").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoice/create-payment").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoice/all").authenticated()
                         .requestMatchers("/actuator/health/**").permitAll()
                 )

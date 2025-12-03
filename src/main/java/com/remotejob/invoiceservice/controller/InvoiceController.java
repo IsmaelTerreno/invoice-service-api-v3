@@ -1,6 +1,7 @@
 package com.remotejob.invoiceservice.controller;
 
 import com.remotejob.invoiceservice.dto.InvoiceDto;
+import com.remotejob.invoiceservice.dto.PaymentDto;
 import com.remotejob.invoiceservice.dto.ResponseAPI;
 import com.remotejob.invoiceservice.dto.SubscriptionDto;
 import com.remotejob.invoiceservice.entity.Invoice;
@@ -86,6 +87,47 @@ public class InvoiceController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error creating subscription", e);
+
+            ResponseAPI<Map<String, Object>> errorResponse = ResponseAPI.<Map<String, Object>>builder()
+                    .status("error")
+                    .message(e.getMessage())
+                    .data(null)
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Creates a one-time payment and saves the invoice in the database.
+     *
+     * @param paymentToCreate The payment details to be created.
+     * @return The result of the payment creation process, including the saved invoice.
+     */
+    @Operation(
+            summary = "Creates a one-time payment and saves the invoice",
+            description = "Processes a one-time payment for items and stores the invoice information in the database"
+    )
+    @ApiResponse(responseCode = "200", description = "Payment processed successfully")
+    @ApiResponse(responseCode = "500", description = "Internal server error")
+    @PostMapping("/create-payment")
+    public ResponseEntity<ResponseAPI<Map<String, Object>>> createPayment(
+            @Valid @RequestBody PaymentDto paymentToCreate) {
+        try {
+            log.info("POST /api/v1/invoice/create-payment - Creating one-time payment for user: {}",
+                    paymentToCreate.getUserId());
+
+            Map<String, Object> result = invoiceService.createOneTimePaymentAndSaveInvoice(paymentToCreate);
+
+            ResponseAPI<Map<String, Object>> response = ResponseAPI.<Map<String, Object>>builder()
+                    .status("succeeded")
+                    .message("Payment processed successfully.")
+                    .data(result)
+                    .build();
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error creating payment", e);
 
             ResponseAPI<Map<String, Object>> errorResponse = ResponseAPI.<Map<String, Object>>builder()
                     .status("error")

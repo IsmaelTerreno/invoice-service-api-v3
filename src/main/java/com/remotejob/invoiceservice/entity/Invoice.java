@@ -50,7 +50,7 @@ public class Invoice {
     @Column(name = "items", nullable = false, length = 10000)
     private JsonNode items;
 
-    @Column(name = "subscription_id", nullable = false)
+    @Column(name = "subscription_id", nullable = true)
     private String subscriptionId;
 
     @Column(name = "status", nullable = false)

@@ -120,6 +120,48 @@ public class StripeService {
     }
 
     /**
+     * Creates a one-time PaymentIntent for immediate payment.
+     *
+     * @param customerId The unique identifier of the customer.
+     * @param paymentMethodId The payment method ID to use for the payment.
+     * @param amount The amount to charge (in cents).
+     * @param currency The currency for the payment (e.g., "usd").
+     * @return The created PaymentIntent object.
+     * @throws StripeException if the payment intent creation fails.
+     */
+    public PaymentIntent createPaymentIntent(String customerId, String paymentMethodId, Long amount, String currency) throws StripeException {
+        log.info("Creating payment intent for customer: {} with amount: {} {}", customerId, amount, currency);
+
+        com.stripe.param.PaymentIntentCreateParams params = com.stripe.param.PaymentIntentCreateParams.builder()
+                .setAmount(amount)
+                .setCurrency(currency)
+                .setCustomer(customerId)
+                .setPaymentMethod(paymentMethodId)
+                .setConfirm(true)
+                .setAutomaticPaymentMethods(
+                        com.stripe.param.PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                .setEnabled(true)
+                                .setAllowRedirects(com.stripe.param.PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
+                                .build()
+                )
+                .build();
+
+        return PaymentIntent.create(params);
+    }
+
+    /**
+     * Retrieves a Stripe Price object to get pricing information.
+     *
+     * @param priceId The unique identifier of the price.
+     * @return The Price object with pricing information.
+     * @throws StripeException if the price retrieval fails.
+     */
+    public Price getPrice(String priceId) throws StripeException {
+        log.info("Retrieving price information for: {}", priceId);
+        return Price.retrieve(priceId);
+    }
+
+    /**
      * Constructs a Stripe event object from the provided body and signature.
      *
      * @param payload The payload of the webhook event.
