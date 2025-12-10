@@ -132,6 +132,7 @@ public class InvoiceService {
         invoiceToCreate.setStatus(latestInvoice.getStatus());
         invoiceToCreate.setLastPaymentIntentId(paymentIntent.getId());
         invoiceToCreate.setInvoiceIdProvidedByStripe(latestInvoice.getId());
+        invoiceToCreate.setJobId(subscriptionToCreate.getJobId()); // Set job ID if provided
 
         // Create new invoice in DB from Stripe subscription information
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
@@ -161,6 +162,9 @@ public class InvoiceService {
         planData.put("isActive", false);
         planData.put("status", subscription.getStatus());
         planData.put("durationInDays", 30);
+        if (savedInvoice.getJobId() != null) {
+            planData.put("jobId", savedInvoice.getJobId());
+        }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
@@ -286,6 +290,7 @@ public class InvoiceService {
         invoiceToCreate.setStatus(paymentIntent.getStatus());
         invoiceToCreate.setLastPaymentIntentId(paymentIntent.getId());
         invoiceToCreate.setInvoiceIdProvidedByStripe(paymentIntent.getId()); // Use payment intent ID as invoice ID
+        invoiceToCreate.setJobId(paymentToCreate.getJobId()); // Set job ID if provided
 
         // Create new invoice in DB from payment information
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
@@ -307,6 +312,9 @@ public class InvoiceService {
         planData.put("isActive", isActive);
         planData.put("status", paymentIntent.getStatus());
         planData.put("durationInDays", 30);
+        if (savedInvoice.getJobId() != null) {
+            planData.put("jobId", savedInvoice.getJobId());
+        }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
@@ -467,6 +475,9 @@ public class InvoiceService {
         statusUpdateData.put("items", invoiceFound.getItems());
         statusUpdateData.put("isActive", true);
         statusUpdateData.put("status", paymentIntent.getStatus());
+        if (invoiceFound.getJobId() != null) {
+            statusUpdateData.put("jobId", invoiceFound.getJobId());
+        }
 
         rabbitMQService.sendDirectMessage(statusUpdateData, invoiceStatusOnRelatedPlansQueueName);
 

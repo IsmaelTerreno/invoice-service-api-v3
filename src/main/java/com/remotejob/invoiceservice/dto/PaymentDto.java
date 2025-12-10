@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
  *  - items: Items to be paid for.
  *  - paymentMethod: Payment Method for the payment.
  *  - currency: Currency for the payment (default: usd).
+ *  - jobId: Job ID associated with the payment (optional).
  */
 @Data
 @AllArgsConstructor
@@ -44,5 +45,9 @@ public class PaymentDto {
 
     @Schema(description = "Currency for the payment.", example = "usd", defaultValue = "usd")
     private String currency = "usd";
+
+    @Schema(description = "Job ID associated with the payment.", example = "job-456")
+    @JsonProperty("job_id")
+    private String jobId;
 }
 

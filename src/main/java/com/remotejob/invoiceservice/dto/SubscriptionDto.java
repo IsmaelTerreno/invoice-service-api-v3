@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
  *  - email: Customer Email of the subscription.
  *  - items: Items of the subscription.
  *  - paymentMethod: Payment Method of the subscription.
+ *  - jobId: Job ID associated with the subscription (optional).
  */
 @Data
 @AllArgsConstructor
@@ -39,4 +40,8 @@ public class SubscriptionDto {
     @Schema(description = "Payment Method of the subscription.", example = "pm_card_visa")
     @JsonProperty("payment_method")
     private String paymentMethod;
+
+    @Schema(description = "Job ID associated with the subscription.", example = "job-456")
+    @JsonProperty("job_id")
+    private String jobId;
 }

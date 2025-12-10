@@ -21,4 +21,7 @@ public class InvoiceStatusUpdateEvent {
 
     @Schema(description = "Optional new expiration time for the plan", example = "2026-01-31T00:00:00Z")
     public Instant expiresAt;
+
+    @Schema(description = "Job ID", example = "job-456")
+    public String jobId;
 }

@@ -36,4 +36,7 @@ public class PlansToCreateEvent {
 
     @Schema(description = "Expiration timestamp (ISO-8601)", example = "2025-12-31T23:59:59Z")
     public Instant expiresAt;
+
+    @Schema(description = "Job ID", example = "job-456")
+    public String jobId;
 }

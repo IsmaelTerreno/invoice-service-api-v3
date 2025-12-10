@@ -21,6 +21,7 @@ import java.util.UUID;
  * @property status - The status of the invoice.
  * @property lastPaymentIntentId - The identifier for the last payment intent associated with the invoice.
  * @property invoiceIdProvidedByStripe - The identifier for the invoice as provided by Stripe.
+ * @property jobId - The identifier for the job associated with the invoice.
  * @property createdAt - The timestamp when the invoice was created.
  * @property updatedAt - The timestamp when the invoice was last updated.
  */
@@ -61,6 +62,9 @@ public class Invoice {
 
     @Column(name = "invoice_id_provided_by_stripe", nullable = false)
     private String invoiceIdProvidedByStripe;
+
+    @Column(name = "job_id", nullable = true)
+    private String jobId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
