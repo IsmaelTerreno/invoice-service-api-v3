@@ -44,12 +44,25 @@ public class JwtFilter extends GenericFilterBean {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain fc)
             throws IOException, ServletException {
-        final String token = getTokenFromRequest((HttpServletRequest) request);
-        if (token != null && jwtProvider.validateToken(token)) {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        String requestURI = httpRequest.getRequestURI();
+        String method = httpRequest.getMethod();
+        
+        log.info("🔐 [JWT Filter] Processing request: {} {}", method, requestURI);
+        
+        final String token = getTokenFromRequest(httpRequest);
+        
+        if (token == null) {
+            log.warn("⚠️ [JWT Filter] No JWT token found in Authorization header for: {} {}", method, requestURI);
+        } else if (!jwtProvider.validateToken(token)) {
+            log.warn("⚠️ [JWT Filter] Invalid or expired JWT token for: {} {}", method, requestURI);
+        } else {
             final Claims claims = jwtProvider.getAccessClaims(token);
             final JwtAuthentication jwtInfoToken = JwtUtils.generate(claims);
             jwtInfoToken.setAuthenticated(true);
             SecurityContextHolder.getContext().setAuthentication(jwtInfoToken);
+            log.info("✅ [JWT Filter] Authentication successful for: {} {} | User: {}", 
+                    method, requestURI, claims.getSubject());
         }
         fc.doFilter(request, response);
     }

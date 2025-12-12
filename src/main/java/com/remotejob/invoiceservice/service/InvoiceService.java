@@ -186,6 +186,11 @@ public class InvoiceService {
             log.warn("⚠️ [SUBSCRIPTION->PLAN-JOB] No job ID to include in RabbitMQ message | invoiceId={}", 
                     savedInvoice.getId());
         }
+        if (subscriptionToCreate.getMetadata() != null) {
+            planData.put("metadata", subscriptionToCreate.getMetadata());
+            log.info("📦 [SUBSCRIPTION->PLAN] Including metadata in RabbitMQ message | invoiceId={} | metadata={}", 
+                    savedInvoice.getId(), subscriptionToCreate.getMetadata().toString());
+        }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
@@ -358,6 +363,11 @@ public class InvoiceService {
         } else {
             log.warn("⚠️ [PAYMENT->PLAN-JOB] No job ID to include in RabbitMQ message | invoiceId={}", 
                     savedInvoice.getId());
+        }
+        if (paymentToCreate.getMetadata() != null) {
+            planData.put("metadata", paymentToCreate.getMetadata());
+            log.info("📦 [PAYMENT->PLAN] Including metadata in RabbitMQ message | invoiceId={} | metadata={}", 
+                    savedInvoice.getId(), paymentToCreate.getMetadata().toString());
         }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);

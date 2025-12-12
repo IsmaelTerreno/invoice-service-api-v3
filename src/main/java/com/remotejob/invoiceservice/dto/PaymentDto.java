@@ -49,5 +49,9 @@ public class PaymentDto {
     @Schema(description = "Job ID associated with the payment.", example = "job-456")
     @JsonProperty("job_id")
     private String jobId;
+
+    @Schema(description = "Plan metadata (features selected)",
+            example = "{\"showLogo\": true, \"brandColor\": \"#FF6B6B\", \"highlightYellow\": true, \"showOnTop\": true}")
+    private JsonNode metadata;
 }
 

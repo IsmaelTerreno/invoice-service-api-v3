@@ -39,4 +39,9 @@ public class PlansToCreateEvent {
 
     @Schema(description = "Job ID", example = "job-456")
     public String jobId;
+
+    @Schema(description = "Plan metadata",
+            implementation = JsonNode.class,
+            example = "{\n  \"showLogo\": true,\n  \"brandColor\": \"#FF6B6B\"\n}")
+    public JsonNode metadata;
 }
