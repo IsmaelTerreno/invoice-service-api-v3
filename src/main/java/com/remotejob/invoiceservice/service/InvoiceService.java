@@ -92,8 +92,17 @@ public class InvoiceService {
         // Set tracking context
         CorrelationContext.setUserId(subscriptionToCreate.getUserId());
         
-        log.info("🔄 [SUBSCRIPTION] Starting subscription creation | userId={} | email={}", 
-                subscriptionToCreate.getUserId(), subscriptionToCreate.getEmail());
+        log.info("🔄 [SUBSCRIPTION] Starting subscription creation | userId={} | email={} | jobId={}", 
+                subscriptionToCreate.getUserId(), subscriptionToCreate.getEmail(),
+                subscriptionToCreate.getJobId() != null ? subscriptionToCreate.getJobId() : "NOT_PROVIDED");
+        
+        if (subscriptionToCreate.getJobId() != null) {
+            log.info("📌 [SUBSCRIPTION-JOB] Job ID detected in subscription request | jobId={} | userId={}", 
+                    subscriptionToCreate.getJobId(), subscriptionToCreate.getUserId());
+        } else {
+            log.warn("⚠️ [SUBSCRIPTION-JOB] No job ID provided in subscription request | userId={} | This subscription will not be linked to a specific job", 
+                    subscriptionToCreate.getUserId());
+        }
 
         // Create new customer in Stripe
         com.stripe.model.Customer customer = stripeService.createCustomer(
@@ -138,8 +147,14 @@ public class InvoiceService {
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
         CorrelationContext.setInvoiceId(savedInvoice.getId().toString());
         
-        log.info("✅ [SUBSCRIPTION] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={}", 
-                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), savedInvoice.getStatus());
+        log.info("✅ [SUBSCRIPTION] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={} | jobId={}", 
+                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), 
+                savedInvoice.getStatus(), savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL");
+        
+        if (savedInvoice.getJobId() != null) {
+            log.info("📌 [SUBSCRIPTION-JOB] Invoice linked to job | invoiceId={} | jobId={}", 
+                    savedInvoice.getId(), savedInvoice.getJobId());
+        }
 
         // Confirm payment intent to complete the subscription
         log.info("🔄 [SUBSCRIPTION] Confirming payment intent | paymentIntentId={}", paymentIntent.getId());
@@ -150,8 +165,9 @@ public class InvoiceService {
         log.info("✅ [SUBSCRIPTION] Payment intent confirmed | paymentIntentId={} | status={}", 
                 confirmedPaymentIntent.getId(), confirmedPaymentIntent.getStatus());
 
-        log.info("🛰 [SUBSCRIPTION->PLAN] Initiating plan creation | userId={} | invoiceId={} | subscriptionId={}", 
-                subscriptionToCreate.getUserId(), savedInvoice.getId(), subscription.getId());
+        log.info("🛰 [SUBSCRIPTION->PLAN] Initiating plan creation | userId={} | invoiceId={} | jobId={} | subscriptionId={}", 
+                subscriptionToCreate.getUserId(), savedInvoice.getId(), 
+                savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL", subscription.getId());
 
         // Send message to RabbitMQ service to create a plan for the related invoice
         Map<String, Object> planData = new HashMap<>();
@@ -164,12 +180,18 @@ public class InvoiceService {
         planData.put("durationInDays", 30);
         if (savedInvoice.getJobId() != null) {
             planData.put("jobId", savedInvoice.getJobId());
+            log.info("📌 [SUBSCRIPTION->PLAN-JOB] Including job ID in RabbitMQ message | jobId={} | invoiceId={}", 
+                    savedInvoice.getJobId(), savedInvoice.getId());
+        } else {
+            log.warn("⚠️ [SUBSCRIPTION->PLAN-JOB] No job ID to include in RabbitMQ message | invoiceId={}", 
+                    savedInvoice.getId());
         }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
-        log.info("✅ [SUBSCRIPTION->PLAN] Plan creation message sent | userId={} | invoiceId={} | isActive=false", 
-                subscriptionToCreate.getUserId(), savedInvoice.getId());
+        log.info("✅ [SUBSCRIPTION->PLAN] Plan creation message sent | userId={} | invoiceId={} | jobId={} | isActive=false", 
+                subscriptionToCreate.getUserId(), savedInvoice.getId(), 
+                savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL");
 
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
@@ -215,8 +237,17 @@ public class InvoiceService {
         // Set tracking context
         CorrelationContext.setUserId(paymentToCreate.getUserId());
         
-        log.info("🔄 [PAYMENT] Starting one-time payment | userId={} | email={} | currency={}", 
-                paymentToCreate.getUserId(), paymentToCreate.getEmail(), paymentToCreate.getCurrency());
+        log.info("🔄 [PAYMENT] Starting one-time payment | userId={} | email={} | currency={} | jobId={}", 
+                paymentToCreate.getUserId(), paymentToCreate.getEmail(), paymentToCreate.getCurrency(), 
+                paymentToCreate.getJobId() != null ? paymentToCreate.getJobId() : "NOT_PROVIDED");
+        
+        if (paymentToCreate.getJobId() != null) {
+            log.info("📌 [PAYMENT-JOB] Job ID detected in payment request | jobId={} | userId={}", 
+                    paymentToCreate.getJobId(), paymentToCreate.getUserId());
+        } else {
+            log.warn("⚠️ [PAYMENT-JOB] No job ID provided in payment request | userId={} | This payment will not be linked to a specific job", 
+                    paymentToCreate.getUserId());
+        }
 
         // Get or create customer in Stripe
         com.stripe.model.Customer customer;
@@ -296,12 +327,20 @@ public class InvoiceService {
         Invoice savedInvoice = saveOrUpdate(invoiceToCreate);
         CorrelationContext.setInvoiceId(savedInvoice.getId().toString());
         
-        log.info("✅ [PAYMENT] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={}", 
-                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), savedInvoice.getStatus());
+        log.info("✅ [PAYMENT] Saved invoice to DB | invoiceId={} | userId={} | customerId={} | status={} | jobId={}", 
+                savedInvoice.getId(), savedInvoice.getUserId(), savedInvoice.getCustomerId(), 
+                savedInvoice.getStatus(), savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL");
+        
+        if (savedInvoice.getJobId() != null) {
+            log.info("📌 [PAYMENT-JOB] Invoice linked to job | invoiceId={} | jobId={}", 
+                    savedInvoice.getId(), savedInvoice.getJobId());
+        }
 
         boolean isActive = paymentIntent.getStatus().equals("succeeded");
-        log.info("🛰 [PAYMENT->PLAN] Initiating plan creation | userId={} | invoiceId={} | paymentStatus={} | isActive={}", 
-                paymentToCreate.getUserId(), savedInvoice.getId(), paymentIntent.getStatus(), isActive);
+        log.info("🛰 [PAYMENT->PLAN] Initiating plan creation | userId={} | invoiceId={} | jobId={} | paymentStatus={} | isActive={}", 
+                paymentToCreate.getUserId(), savedInvoice.getId(), 
+                savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL",
+                paymentIntent.getStatus(), isActive);
 
         // Send message to RabbitMQ service to create a plan for the related invoice
         Map<String, Object> planData = new HashMap<>();
@@ -314,12 +353,18 @@ public class InvoiceService {
         planData.put("durationInDays", 30);
         if (savedInvoice.getJobId() != null) {
             planData.put("jobId", savedInvoice.getJobId());
+            log.info("📌 [PAYMENT->PLAN-JOB] Including job ID in RabbitMQ message | jobId={} | invoiceId={}", 
+                    savedInvoice.getJobId(), savedInvoice.getId());
+        } else {
+            log.warn("⚠️ [PAYMENT->PLAN-JOB] No job ID to include in RabbitMQ message | invoiceId={}", 
+                    savedInvoice.getId());
         }
 
         rabbitMQService.sendDirectMessage(planData, plansToCreateQueueName);
 
-        log.info("✅ [PAYMENT->PLAN] Plan creation message sent | userId={} | invoiceId={} | isActive={}", 
-                paymentToCreate.getUserId(), savedInvoice.getId(), isActive);
+        log.info("✅ [PAYMENT->PLAN] Plan creation message sent | userId={} | invoiceId={} | jobId={} | isActive={}", 
+                paymentToCreate.getUserId(), savedInvoice.getId(), 
+                savedInvoice.getJobId() != null ? savedInvoice.getJobId() : "NULL", isActive);
 
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
@@ -449,8 +494,14 @@ public class InvoiceService {
         CorrelationContext.setUserId(invoiceFound.getUserId());
         CorrelationContext.setInvoiceId(invoiceFound.getId().toString());
         
-        log.info("✅ [WEBHOOK] Invoice found in DB | invoiceId={} | userId={} | currentStatus={}",
-                invoiceFound.getId(), invoiceFound.getUserId(), invoiceFound.getStatus());
+        log.info("✅ [WEBHOOK] Invoice found in DB | invoiceId={} | userId={} | currentStatus={} | jobId={}",
+                invoiceFound.getId(), invoiceFound.getUserId(), invoiceFound.getStatus(),
+                invoiceFound.getJobId() != null ? invoiceFound.getJobId() : "NULL");
+        
+        if (invoiceFound.getJobId() != null) {
+            log.info("📌 [WEBHOOK-JOB] Invoice is linked to job | invoiceId={} | jobId={}", 
+                    invoiceFound.getId(), invoiceFound.getJobId());
+        }
 
         // Update invoice status
         String oldStatus = invoiceFound.getStatus();
@@ -464,8 +515,9 @@ public class InvoiceService {
         log.info("✅ [WEBHOOK] Invoice status updated in DB | invoiceId={} | status={}",
                 invoiceFound.getId(), paymentIntent.getStatus());
 
-        log.info("🛰 [WEBHOOK->PLAN] Initiating plan status update | userId={} | invoiceId={} | newStatus={} | isActive=true", 
-                invoiceFound.getUserId(), invoiceFound.getId(), paymentIntent.getStatus());
+        log.info("🛰 [WEBHOOK->PLAN] Initiating plan status update | userId={} | invoiceId={} | jobId={} | newStatus={} | isActive=true", 
+                invoiceFound.getUserId(), invoiceFound.getId(), 
+                invoiceFound.getJobId() != null ? invoiceFound.getJobId() : "NULL", paymentIntent.getStatus());
 
         // Send message to RabbitMQ service to update the status of the existing related plan
         Map<String, Object> statusUpdateData = new HashMap<>();
@@ -477,12 +529,18 @@ public class InvoiceService {
         statusUpdateData.put("status", paymentIntent.getStatus());
         if (invoiceFound.getJobId() != null) {
             statusUpdateData.put("jobId", invoiceFound.getJobId());
+            log.info("📌 [WEBHOOK->PLAN-JOB] Including job ID in status update message | jobId={} | invoiceId={}", 
+                    invoiceFound.getJobId(), invoiceFound.getId());
+        } else {
+            log.warn("⚠️ [WEBHOOK->PLAN-JOB] No job ID to include in status update message | invoiceId={}", 
+                    invoiceFound.getId());
         }
 
         rabbitMQService.sendDirectMessage(statusUpdateData, invoiceStatusOnRelatedPlansQueueName);
 
-        log.info("✅ [WEBHOOK->PLAN] Plan status update message sent | userId={} | invoiceId={} | isActive=true", 
-                invoiceFound.getUserId(), invoiceFound.getId());
+        log.info("✅ [WEBHOOK->PLAN] Plan status update message sent | userId={} | invoiceId={} | jobId={} | isActive=true", 
+                invoiceFound.getUserId(), invoiceFound.getId(), 
+                invoiceFound.getJobId() != null ? invoiceFound.getJobId() : "NULL");
 
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
