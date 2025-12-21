@@ -16,6 +16,7 @@ import java.util.UUID;
  * @property userId - The identifier for the user associated with the invoice.
  * @property customerId - The identifier for the customer associated with the invoice.
  * @property customerEmail - The email of the customer associated with the invoice.
+ * @property customerFullName - The full name of the customer associated with the invoice.
  * @property items - The items included in the invoice.
  * @property subscriptionId - The identifier for the subscription associated with the invoice.
  * @property status - The status of the invoice.
@@ -46,6 +47,9 @@ public class Invoice {
 
     @Column(name = "customer_email", nullable = false)
     private String customerEmail;
+
+    @Column(name = "customer_full_name")
+    private String customerFullName;
 
     @Convert(converter = JsonDynamicConverter.class)
     @Column(name = "items", nullable = false, length = 10000)

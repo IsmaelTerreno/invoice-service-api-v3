@@ -30,6 +30,9 @@ public class NotificationDto {
     @Email(message = "User email must be valid")
     private String userEmail;
 
+    @Schema(description = "User full name")
+    private String fullName;
+
     @Schema(description = "Event type related to this notification")
     @NotNull(message = "Event type is required")
     private String eventType;

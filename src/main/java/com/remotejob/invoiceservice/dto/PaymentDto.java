@@ -34,6 +34,10 @@ public class PaymentDto {
     @Email(message = "Email must be valid")
     private String email;
 
+    @Schema(description = "Customer full name.", example = "John Doe")
+    @JsonProperty("full_name")
+    private String fullName;
+
     @Schema(description = "Items to be paid for.")
     @NotNull(message = "Items are required")
     private JsonNode items;

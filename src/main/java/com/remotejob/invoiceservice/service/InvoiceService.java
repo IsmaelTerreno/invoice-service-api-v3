@@ -136,6 +136,7 @@ public class InvoiceService {
         invoiceToCreate.setUserId(subscriptionToCreate.getUserId());
         invoiceToCreate.setCustomerId(customer.getId());
         invoiceToCreate.setCustomerEmail(customer.getEmail());
+        invoiceToCreate.setCustomerFullName(subscriptionToCreate.getFullName());
         invoiceToCreate.setItems(subscriptionToCreate.getItems());
         invoiceToCreate.setSubscriptionId(subscription.getId());
         invoiceToCreate.setStatus(latestInvoice.getStatus());
@@ -202,6 +203,7 @@ public class InvoiceService {
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(savedInvoice.getUserId());
         notificationMessage.setUserEmail(savedInvoice.getCustomerEmail());
+        notificationMessage.setFullName(savedInvoice.getCustomerFullName());
         notificationMessage.setNotificationType("payment");
         notificationMessage.setTopic("Payment in progress");
         notificationMessage.setBody("Waiting for payment");
@@ -324,6 +326,7 @@ public class InvoiceService {
         invoiceToCreate.setUserId(paymentToCreate.getUserId());
         invoiceToCreate.setCustomerId(customer.getId());
         invoiceToCreate.setCustomerEmail(customer.getEmail());
+        invoiceToCreate.setCustomerFullName(paymentToCreate.getFullName());
         invoiceToCreate.setItems(paymentToCreate.getItems());
         invoiceToCreate.setSubscriptionId(null); // No subscription for one-time payments
         invoiceToCreate.setStatus(paymentIntent.getStatus());
@@ -383,6 +386,7 @@ public class InvoiceService {
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(savedInvoice.getUserId());
         notificationMessage.setUserEmail(savedInvoice.getCustomerEmail());
+        notificationMessage.setFullName(savedInvoice.getCustomerFullName());
         notificationMessage.setNotificationType("payment");
         
         if (paymentIntent.getStatus().equals("succeeded")) {
@@ -562,6 +566,7 @@ public class InvoiceService {
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(invoiceFound.getUserId());
         notificationMessage.setUserEmail(invoiceFound.getCustomerEmail());
+        notificationMessage.setFullName(invoiceFound.getCustomerFullName());
         notificationMessage.setNotificationType("payment");
         notificationMessage.setTopic("Payment received");
         notificationMessage.setBody("Your payment has been received successfully.");
