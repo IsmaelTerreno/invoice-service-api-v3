@@ -201,6 +201,8 @@ public class InvoiceService {
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(savedInvoice.getUserId());
+        notificationMessage.setUserEmail(savedInvoice.getCustomerEmail());
+        notificationMessage.setNotificationType("payment");
         notificationMessage.setTopic("Payment in progress");
         notificationMessage.setBody("Waiting for payment");
         notificationMessage.setRead(false);
@@ -214,7 +216,8 @@ public class InvoiceService {
                 EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION
         );
 
-        log.info("✅ [SUBSCRIPTION] Notification sent to user | userId={}", savedInvoice.getUserId());
+        log.info("✅ [SUBSCRIPTION] Notification sent to user | userId={} | userEmail={}", 
+                savedInvoice.getUserId(), savedInvoice.getCustomerEmail());
 
         // Return the created invoice
         Map<String, Object> response = new HashMap<>();
@@ -379,6 +382,8 @@ public class InvoiceService {
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(savedInvoice.getUserId());
+        notificationMessage.setUserEmail(savedInvoice.getCustomerEmail());
+        notificationMessage.setNotificationType("payment");
         
         if (paymentIntent.getStatus().equals("succeeded")) {
             notificationMessage.setTopic("Payment successful");
@@ -402,7 +407,8 @@ public class InvoiceService {
                     : EventPatternNotification.PAYMENT_IN_PROGRESS_NOTIFICATION
         );
 
-        log.info("✅ [PAYMENT] Notification sent to user | userId={}", savedInvoice.getUserId());
+        log.info("✅ [PAYMENT] Notification sent to user | userId={} | userEmail={}", 
+                savedInvoice.getUserId(), savedInvoice.getCustomerEmail());
 
         // Return the created invoice
         Map<String, Object> response = new HashMap<>();
@@ -555,6 +561,8 @@ public class InvoiceService {
         // Prepare notification message for the user
         NotificationDto notificationMessage = new NotificationDto();
         notificationMessage.setUserId(invoiceFound.getUserId());
+        notificationMessage.setUserEmail(invoiceFound.getCustomerEmail());
+        notificationMessage.setNotificationType("payment");
         notificationMessage.setTopic("Payment received");
         notificationMessage.setBody("Your payment has been received successfully.");
         notificationMessage.setRead(false);
@@ -568,7 +576,8 @@ public class InvoiceService {
                 EventPatternNotification.PAYMENT_RECEIVED_NOTIFICATION
         );
 
-        log.info("✅ [WEBHOOK] Notification sent to user | userId={}", invoiceFound.getUserId());
+        log.info("✅ [WEBHOOK] Notification sent to user | userId={} | userEmail={}", 
+                invoiceFound.getUserId(), invoiceFound.getCustomerEmail());
         
         long durationMs = Duration.between(startTime, Instant.now()).toMillis();
         log.info("🎉 [WEBHOOK] Payment intent succeeded processing completed | userId={} | invoiceId={} | paymentIntentId={} | duration={}ms",

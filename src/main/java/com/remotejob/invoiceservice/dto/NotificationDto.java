@@ -2,6 +2,7 @@ package com.remotejob.invoiceservice.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,9 +25,17 @@ public class NotificationDto {
     @NotNull(message = "User ID is required")
     private String userId;
 
+    @Schema(description = "User email to send the notification to")
+    @NotNull(message = "User email is required")
+    @Email(message = "User email must be valid")
+    private String userEmail;
+
     @Schema(description = "Event type related to this notification")
     @NotNull(message = "Event type is required")
     private String eventType;
+
+    @Schema(description = "Type of notification (payment, account, system, marketing)")
+    private String notificationType;
 
     @Schema(description = "Topic/Subject of the notification")
     @NotNull(message = "Topic is required")
