@@ -48,7 +48,7 @@ public class Invoice {
     @Column(name = "customer_email", nullable = false)
     private String customerEmail;
 
-    @Column(name = "customer_full_name")
+    @Column(name = "customer_full_name", nullable = false)
     private String customerFullName;
 
     @Convert(converter = JsonDynamicConverter.class)

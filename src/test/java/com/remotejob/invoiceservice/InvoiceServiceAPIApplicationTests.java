@@ -126,10 +126,12 @@ class InvoiceServiceAPIApplicationTests {
         SubscriptionDto dto = new SubscriptionDto();
         dto.setUserId("test-user");
         dto.setEmail("test@example.com");
+        dto.setFullName("Test User");
         dto.setPaymentMethod("pm_test");
 
         assertThat(dto.getUserId()).isEqualTo("test-user");
         assertThat(dto.getEmail()).isEqualTo("test@example.com");
+        assertThat(dto.getFullName()).isEqualTo("Test User");
         assertThat(dto.getPaymentMethod()).isEqualTo("pm_test");
     }
 
@@ -170,6 +172,7 @@ class InvoiceServiceAPIApplicationTests {
         invoice.setUserId("carlos-test-user");
         invoice.setCustomerId("carlos-test-customer");
         invoice.setCustomerEmail("carlos@example.com");
+        invoice.setCustomerFullName("Carlos Test User");
         invoice.setSubscriptionId("sub_carlos_test");
         invoice.setStatus("active");
         invoice.setLastPaymentIntentId("pi_carlos_test");
@@ -178,6 +181,7 @@ class InvoiceServiceAPIApplicationTests {
         assertThat(invoice.getUserId()).isEqualTo("carlos-test-user");
         assertThat(invoice.getCustomerId()).isEqualTo("carlos-test-customer");
         assertThat(invoice.getCustomerEmail()).isEqualTo("carlos@example.com");
+        assertThat(invoice.getCustomerFullName()).isEqualTo("Carlos Test User");
         assertThat(invoice.getSubscriptionId()).isEqualTo("sub_carlos_test");
         assertThat(invoice.getStatus()).isEqualTo("active");
     }
